@@ -35,8 +35,9 @@ package USB.Device.HID.Mouse is
 
    Mouse_Report_Size : constant := 3;
 
+   subtype Parent is Abstract_HID_Class;
    type Instance
-   is new Abstract_HID_Class (Mouse_Report_Size)
+   is new Parent (Mouse_Report_Size)
    with private;
 
    procedure Set_Move (This : in out Instance;
