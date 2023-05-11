@@ -28,6 +28,7 @@
 --   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.   --
 --                                                                          --
 ------------------------------------------------------------------------------
+pragma Extensions_Allowed (On);
 
 with System; use System;
 
@@ -41,19 +42,17 @@ package body USB.Device.HID is
    -- Initialize --
    ----------------
 
-   overriding
-   function Initialize (This                 : in out Abstract_HID_Class;
-                        Dev                  : in out USB_Device_Stack'Class;
-                        Base_Interface_Index :        Interface_Id)
-                        return Init_Result
+   overriding function Initialize
+     (This : in out Abstract_HID_Class; Dev : in out USB_Device_Stack'Class;
+      Base_Interface_Index :        Interface_Id) return Init_Result
    is
    begin
       if not Dev.Request_Endpoint (Interrupt, This.EP) then
          return Not_Enough_EPs;
       end if;
 
-      This.Report_Buf := Dev.Request_Buffer ((This.EP, EP_In),
-                                             This.Report_Size);
+      This.Report_Buf :=
+        Dev.Request_Buffer ((This.EP, EP_In), This.Report_Size);
       if This.Report_Buf = System.Null_Address then
          return Not_Enough_EP_Buffer;
       end if;
@@ -67,15 +66,14 @@ package body USB.Device.HID is
    -- Get_Class_Info --
    --------------------
 
-   overriding
-   procedure Get_Class_Info
+   overriding procedure Get_Class_Info
      (This                     : in out Abstract_HID_Class;
       Number_Of_Interfaces     :    out Interface_Id;
       Config_Descriptor_Length :    out Natural)
    is
       pragma Unreferenced (This);
    begin
-      Number_Of_Interfaces := 1;
+      Number_Of_Interfaces     := 1;
       Config_Descriptor_Length := 25;
    end Get_Class_Info;
 
@@ -83,18 +81,17 @@ package body USB.Device.HID is
    -- Fill_Config_Descriptor --
    ----------------------------
 
-   overriding
-   procedure Fill_Config_Descriptor (This : in out Abstract_HID_Class;
-                                     Data :    out UInt8_Array)
+   overriding procedure Fill_Config_Descriptor
+     (This : in out Abstract_HID_Class; Data : out UInt8_Array)
    is
       F : constant Natural := Data'First;
 
-      USB_DESC_TYPE_INTERFACE     : constant := 4;
-      USB_DESC_TYPE_ENDPOINT      : constant := 5;
+      USB_DESC_TYPE_INTERFACE : constant := 4;
+      USB_DESC_TYPE_ENDPOINT  : constant := 5;
 
    begin
       Data (F + 0 .. F + 24) :=
-        (9,
+        [9,
          USB_DESC_TYPE_INTERFACE,
          0, --  This.Interface_Index,
          0, -- Alternate setting
@@ -104,40 +101,38 @@ package body USB.Device.HID is
          0, -- Interface protocol 0=none, 1=keyboard, 2=mouse
          0, -- Str
 
-         9,
-         16#21#,
-         16#11#, 16#01#, --  Class spec release number
+         9, 16#21#, 16#11#,
+         16#01#, --  Class spec release number
 
          0,
          1,
          16#22#,
-         Dispatch (This).Report_Descriptor'Length, 0, -- Descriptor length
+         Dispatch (This).Report_Descriptor'Length,
+         0, -- Descriptor length
 
          7,
          USB_DESC_TYPE_ENDPOINT,
          16#80# or UInt8 (This.EP), -- In EP
          3, -- Interrupt EP
-         16#40#, 0, --  TODO: Max packet size
+         16#40#,
+         0, --  TODO: Max packet size
          1 -- Polling interval
-        );
+      ];
    end Fill_Config_Descriptor;
 
    ---------------
    -- Configure --
    ---------------
 
-   overriding
-   function Configure
-     (This  : in out Abstract_HID_Class;
-      UDC   : in out USB_Device_Controller'Class;
-      Index : UInt16)
+   overriding function Configure
+     (This : in out Abstract_HID_Class;
+      UDC  : in out USB_Device_Controller'Class; Index : UInt16)
       return Setup_Request_Answer
    is
    begin
       if Index = 1 then
 
-         UDC.EP_Setup (EP  => (This.EP, EP_In),
-                       Typ => Interrupt);
+         UDC.EP_Setup (EP => (This.EP, EP_In), Typ => Interrupt);
 
          return Handled;
       else
@@ -149,12 +144,10 @@ package body USB.Device.HID is
    -- Setup_Request --
    -------------------
 
-   overriding
-   function Setup_Read_Request (This  : in out Abstract_HID_Class;
-                                Req   : Setup_Data;
-                                Buf   : out System.Address;
-                                Len   : out Buffer_Len)
-                                return Setup_Request_Answer
+   overriding function Setup_Read_Request
+     (This : in out Abstract_HID_Class; Req : Setup_Data;
+      Buf  :    out System.Address; Len : out Buffer_Len)
+      return Setup_Request_Answer
    is
    begin
       Buf := System.Null_Address;
@@ -162,31 +155,29 @@ package body USB.Device.HID is
 
       if Req.RType.Typ = Class and then Req.RType.Recipient = Iface then
          case Req.Request is
-         when 1 => -- GET_REPORT
-            return Not_Supported;
-         when 2 => -- GET_IDLE
-            return Not_Supported;
-         when 3 => -- GET_PROTOCOL
-            return Not_Supported;
-         when others =>
-            raise Program_Error with "Unknown HID request";
+            when 1 => -- GET_REPORT
+               return Not_Supported;
+            when 2 => -- GET_IDLE
+               return Not_Supported;
+            when 3 => -- GET_PROTOCOL
+               return Not_Supported;
+            when others =>
+               raise Program_Error with "Unknown HID request";
          end case;
       end if;
 
-      if Req.RType.Typ = Stand
-        and then
-          Req.Request = 6 -- GET_DESCRIPTOR
+      if Req.RType.Typ = Stand and then Req.Request = 6 -- GET_DESCRIPTOR
       then
          declare
---              Index     : constant UInt8 := UInt8 (Req.Value and 16#FF#);
+            --              Index     : constant UInt8 := UInt8 (Req.Value and 16#FF#);
             Desc_Type : constant UInt8 := Utils.High (Req.Value);
 
          begin
             case Desc_Type is
                when 16#22# => --  HID_REPORT_DESC
                   declare
-                     Report : constant not null Report_Descriptor_Access
-                       := Dispatch (This).Report_Descriptor;
+                     Report : constant not null Report_Descriptor_Access :=
+                       Dispatch (This).Report_Descriptor;
                   begin
                      Buf := Report.all'Address;
                      Len := Buffer_Len (Report.all'Length);
@@ -208,29 +199,27 @@ package body USB.Device.HID is
    -- Setup_Write_Request --
    -------------------------
 
-   overriding
-   function Setup_Write_Request (This  : in out Abstract_HID_Class;
-                                 Req   : Setup_Data;
-                                 Data  : UInt8_Array)
-                                 return Setup_Request_Answer
+   overriding function Setup_Write_Request
+     (This : in out Abstract_HID_Class; Req : Setup_Data; Data : UInt8_Array)
+      return Setup_Request_Answer
    is
    begin
       if Req.RType.Typ = Class and then Req.RType.Recipient = Iface then
          case Req.Request is
-         when 9 => -- SET_REPORT
-            declare
-               Typ : constant UInt8 := Utils.High (Req.Value);
-               ID  : constant UInt8 := Utils.Low (Req.Value);
-            begin
-               return Dispatch (This).Set_Report (Typ, ID, Data);
-            end;
-         when 10 => -- SET_IDLE
-            This.Idle_State := Utils.High (Req.Value);
-            return Handled;
-         when 11 => -- SET_PROTOCOL
-            return Not_Supported;
-         when others =>
-            raise Program_Error with "Unknown HID request";
+            when 9 => -- SET_REPORT
+               declare
+                  Typ : constant UInt8 := Utils.High (Req.Value);
+                  ID  : constant UInt8 := Utils.Low (Req.Value);
+               begin
+                  return Dispatch (This).Set_Report (Typ, ID, Data);
+               end;
+            when 10 => -- SET_IDLE
+               This.Idle_State := Utils.High (Req.Value);
+               return Handled;
+            when 11 => -- SET_PROTOCOL
+               return Not_Supported;
+            when others =>
+               raise Program_Error with "Unknown HID request";
          end case;
       end if;
 
@@ -241,11 +230,10 @@ package body USB.Device.HID is
    -- Transfer_Complete --
    -----------------------
 
-   overriding
-   procedure Transfer_Complete (This : in out Abstract_HID_Class;
-                                UDC  : in out USB_Device_Controller'Class;
-                                EP   :        EP_Addr;
-                                CNT  :        Packet_Size)
+   overriding procedure Transfer_Complete
+     (This : in out Abstract_HID_Class;
+      UDC  : in out USB_Device_Controller'Class; EP : EP_Addr;
+      CNT  :        Packet_Size)
    is
    begin
       pragma Assert (EP.Num = This.EP);
@@ -261,11 +249,12 @@ package body USB.Device.HID is
    -- Send_Report --
    -----------------
 
-   procedure Send_Report (This : in out Abstract_HID_Class;
-                          UDC  : in out USB_Device_Controller'Class)
+   procedure Send_Report
+     (This : in out Abstract_HID_Class;
+      UDC  : in out USB_Device_Controller'Class)
    is
-      Report : Report_Data (This.Report'Range)
-        with Address => This.Report_Buf;
+      Report : Report_Data (This.Report'Range) with
+        Address => This.Report_Buf;
 
    begin
       if This.Ready then
@@ -286,7 +275,39 @@ package body USB.Device.HID is
    -- Ready --
    -----------
 
-   function Ready (This : in out Abstract_HID_Class) return Boolean
-   is (This.State = Idle);
+   function Ready (This : in out Abstract_HID_Class) return Boolean is
+     (This.State = Idle);
+
+   procedure Remove_Element_At (A : in out Report_Data; Index : Packet_Size) is
+   begin
+      A (Index .. A'Last - 1) := A (Index + 1 .. A'Last);
+      A (A'Last)              := 0;
+   end Remove_Element_At;
+
+   procedure Remove_Element (A : in out Report_Data; Element : UInt8) is
+      Result : Index_Result := A.Find_Element (Element);
+   begin
+      if (Result.Success) then
+         A.Remove_Element_At (Result.Index);
+      end if;
+   end Remove_Element;
+
+   function Find_Element (A : Report_Data; Element : UInt8) return Index_Result
+   is
+   begin
+      for I in A'Range loop
+         if A (I) = Element then
+            return (True, I);
+         end if;
+      end loop;
+      return (Success => False);
+   end Find_Element;
+
+   procedure Clear (A : in out Report_Data) is
+   begin
+      for I in A'Range loop
+         A (I) := 0;
+      end loop;
+   end Clear;
 
 end USB.Device.HID;

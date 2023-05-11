@@ -13,6 +13,9 @@ tags = ["embedded", "usb", "hid", "midi", "nostd"]
 hal = "~0.3"
 bbqueue = "~0.3.0"
 
+[build-switches."*"]
+ada_version = "GNAT_Extensions"
+
 [configuration.variables]
 Control_Buffer_Size = {type = "Integer", first = 256, default = 256 }
 String_Buffer_Size = {type = "Integer", first = 0, default = 256 }

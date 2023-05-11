@@ -31,29 +31,28 @@
 
 package USB.Device.HID is
 
-   type Abstract_HID_Class (Report_Size : Packet_Size := 1)
-   is abstract limited new USB_Device_Class with private;
+   type Abstract_HID_Class (Report_Size : Packet_Size := 1) is
+     abstract limited new USB_Device_Class with private;
 
    type Report_Descriptor_Access is access constant UInt8_Array;
-   function Report_Descriptor (This : Abstract_HID_Class)
-                               return not null Report_Descriptor_Access
-   is abstract;
+   function Report_Descriptor
+     (This : Abstract_HID_Class)
+      return not null Report_Descriptor_Access is abstract;
    --  HID implementations must return an access to their report descriptor
 
    function Ready (This : in out Abstract_HID_Class) return Boolean;
    --  The class is ready to send a report
 
-   procedure Send_Report (This : in out Abstract_HID_Class;
-                          UDC  : in out USB_Device_Controller'Class)
-     with Pre => This.Ready;
+   procedure Send_Report
+     (This : in out Abstract_HID_Class;
+      UDC  : in out USB_Device_Controller'Class) with
+     Pre => This.Ready;
    --  Send a report to the host
 
-   function Set_Report (This : in out Abstract_HID_Class;
-                        Typ  :        UInt8;
-                        ID   :        UInt8;
-                        Data :        UInt8_Array)
-                        return Setup_Request_Answer
-   is (Not_Supported);
+   function Set_Report
+     (This : in out Abstract_HID_Class; Typ : UInt8; ID : UInt8;
+      Data :        UInt8_Array) return Setup_Request_Answer is
+     (Not_Supported);
    --  Called when the Host sends a Set_Report control transfer. For instance
    --  for LED status on a keyboard.
 
@@ -61,56 +60,61 @@ private
 
    type Class_State is (Stop, Idle, Busy);
 
+   subtype Report_Index is Packet_Size;
    type Report_Data is array (Packet_Size range <>) of UInt8;
+   type Index_Result (Success : Boolean) is record
+      case Success is
+         when True =>
+            Index : Report_Index;
+         when others =>
+            null;
+      end case;
+   end record;
 
-   type Abstract_HID_Class (Report_Size : Packet_Size := 1)
-   is abstract limited new USB_Device_Class with record
+   type Abstract_HID_Class (Report_Size : Report_Index := 1) is
+   abstract limited new USB_Device_Class with record
       Interface_Index : Interface_Id;
       EP              : USB.EP_Id;
       Report          : Report_Data (1 .. Report_Size);
       Report_Buf      : System.Address := System.Null_Address;
-      State           : Class_State := Stop;
-      Idle_State      : UInt8 := 0;
+      State           : Class_State    := Stop;
+      Idle_State      : UInt8          := 0;
    end record;
 
-   overriding
-   function Initialize (This                 : in out Abstract_HID_Class;
-                        Dev                  : in out USB_Device_Stack'Class;
-                        Base_Interface_Index :        Interface_Id)
-                        return Init_Result;
+   overriding function Initialize
+     (This : in out Abstract_HID_Class; Dev : in out USB_Device_Stack'Class;
+      Base_Interface_Index :        Interface_Id) return Init_Result;
 
-   overriding
-   procedure Get_Class_Info
+   overriding procedure Get_Class_Info
      (This                     : in out Abstract_HID_Class;
       Number_Of_Interfaces     :    out Interface_Id;
       Config_Descriptor_Length :    out Natural);
 
-   overriding
-   procedure Fill_Config_Descriptor (This : in out Abstract_HID_Class;
-                                     Data :    out UInt8_Array);
-   overriding
-   function Configure (This  : in out Abstract_HID_Class;
-                       UDC   : in out USB_Device_Controller'Class;
-                       Index : UInt16)
-                       return Setup_Request_Answer;
+   overriding procedure Fill_Config_Descriptor
+     (This : in out Abstract_HID_Class; Data : out UInt8_Array);
+   overriding function Configure
+     (This : in out Abstract_HID_Class;
+      UDC  : in out USB_Device_Controller'Class; Index : UInt16)
+      return Setup_Request_Answer;
 
-   overriding
-   function Setup_Read_Request (This  : in out Abstract_HID_Class;
-                                Req   : Setup_Data;
-                                Buf   : out System.Address;
-                                Len   : out Buffer_Len)
-                                return Setup_Request_Answer;
+   overriding function Setup_Read_Request
+     (This : in out Abstract_HID_Class; Req : Setup_Data;
+      Buf  :    out System.Address; Len : out Buffer_Len)
+      return Setup_Request_Answer;
 
-   overriding
-   function Setup_Write_Request (This  : in out Abstract_HID_Class;
-                                 Req   : Setup_Data;
-                                 Data  : UInt8_Array)
-                                 return Setup_Request_Answer;
+   overriding function Setup_Write_Request
+     (This : in out Abstract_HID_Class; Req : Setup_Data; Data : UInt8_Array)
+      return Setup_Request_Answer;
 
-   overriding
-   procedure Transfer_Complete (This : in out Abstract_HID_Class;
-                                UDC  : in out USB_Device_Controller'Class;
-                                EP   :        EP_Addr;
-                                CNT  :        Packet_Size);
+   overriding procedure Transfer_Complete
+     (This : in out Abstract_HID_Class;
+      UDC  : in out USB_Device_Controller'Class; EP : EP_Addr;
+      CNT  :        Packet_Size);
+
+   procedure Remove_Element_At (A : in out Report_Data; Index : Report_Index);
+   procedure Remove_Element (A : in out Report_Data; Element : UInt8);
+   function Find_Element
+     (A : Report_Data; Element : UInt8) return Index_Result;
+   procedure Clear (A : in out Report_Data);
 
 end USB.Device.HID;
